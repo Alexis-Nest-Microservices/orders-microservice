@@ -23,6 +23,6 @@ async function bootstrap() {
     }),
   );
 
-  logger.log(`OrdersMS is running on port ${envs.port}`);
+  logger.log(`Orders Microservice is running on port ${envs.port}`);
 }
 bootstrap();
