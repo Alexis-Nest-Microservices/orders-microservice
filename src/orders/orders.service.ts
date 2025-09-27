@@ -1,8 +1,8 @@
 import { HttpStatus, Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
-import { PrismaClient } from '@prisma/client';
+import { OrderStatus, PrismaClient } from '@prisma/client';
 import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { ChangeOrderStatusDto, OrderPaginationDto } from './dto';
+import { ChangeOrderStatusDto, OrderPaginationDto, PaidOrderDto } from './dto';
 import { NATS_SERVICE } from 'src/config';
 import { firstValueFrom } from 'rxjs';
 import { OrderWithProducts } from './interfaces/order-with-produts.interface';
@@ -101,7 +101,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
     return {
       data: await this.order.findMany({
-        skip: ( currentPage - 1 ) * perPage,
+        skip: (currentPage - 1) * perPage,
         take: perPage,
         where: {
           status: orderPaginationDto.status
@@ -110,7 +110,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       meta: {
         total: totalPages,
         page: currentPage,
-        lastPage: Math.ceil( totalPages / perPage )
+        lastPage: Math.ceil(totalPages / perPage)
       }
     }
   }
@@ -156,7 +156,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     const { id, status } = changeOrderStatusDto;
 
     const order = await this.findOne(id);
-    if ( order.status === status ) {
+    if (order.status === status) {
       return order;
     }
 
@@ -172,15 +172,40 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       this.client.send('create.payment.session', {
         orderId: order.id,
         currency: 'usd',
-        items: order.OrderItem.map( item => ({
+        items: order.OrderItem.map(item => ({
           name: item.name,
           price: item.price,
           quantity: item.quantity,
-        }) ),
+        })),
       }),
     );
 
     return paymentSession;
   }
-  
+
+  async paidOrder(paidOrderDto: PaidOrderDto) {
+
+    this.logger.log('Order Paid');
+    this.logger.log(paidOrderDto);
+
+    const order = await this.order.update({
+      where: { id: paidOrderDto.orderId },
+      data: {
+        status: OrderStatus.PAID,
+        paid: true,
+        paidAt: new Date(),
+        stripeChargeId: paidOrderDto.stripePaymentId,
+
+        // La relación
+        OrderReceipt: {
+          create: {
+            receiptUrl: paidOrderDto.receiptUrl
+          }
+        }
+      }
+    });
+
+    return order;
+  }
+
 }
