@@ -17,8 +17,6 @@ async function bootstrap() {
     }
   );
 
-  await app.listen();
-
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -26,6 +24,7 @@ async function bootstrap() {
     }),
   );
 
+  await app.listen();
   logger.log(`Orders Microservice is running on port ${envs.port}`);
 }
 bootstrap();
